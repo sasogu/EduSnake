@@ -55,6 +55,24 @@ define([ 'jquery', 'underscore', 'bigScreen', 'settings', 'util', 'database' ],
                             bigScreen.toggle();
 
                         else if ( game.isNotStoppingOrStopped() ){
+                            // Modo Simón: teclas 1-0 -> figuras (0..9). No interferir con pausa.
+                            if ( window.selectedGameMode === 'simon' && game.state.get( 'current' ) === 'running' ){
+                                var symbolIdx = null;
+
+                                // 1..9 => 0..8
+                                if ( key.which >= 49 && key.which <= 57 )
+                                    symbolIdx = key.which - 49;
+                                // 0 => 9
+                                else if ( key.which === 48 )
+                                    symbolIdx = 9;
+
+                                if ( symbolIdx !== null && game.simon && typeof game.simon.input === 'function' ){
+                                    game.simon.input( symbolIdx );
+                                    key.preventDefault();
+                                    return;
+                                }
+                            }
+
                             if ( key.which == keys.space ){
                                 var gameState = game.state.get( 'current' );
 
@@ -138,6 +156,30 @@ define([ 'jquery', 'underscore', 'bigScreen', 'settings', 'util', 'database' ],
                                     game.state.set( 'current', 'starting' )
                                 }
                             })
+                            })();
+
+                            ( function _singlePlayerModeSelector() {
+                                if ( !( menu.options && menu.options.mode &&
+                                       menu.options.mode.normal && menu.options.mode.normal.hitBox &&
+                                       menu.options.mode.simon && menu.options.mode.simon.hitBox &&
+                                       menu.options.mode.applySelection ))
+                                    return;
+
+                                menu.options.mode.applySelection();
+
+                                menu.options.mode.normal.hitBox.on( 'click touchstart', function(){
+                                    if ( menu.isNotStoppingOrStopped() ){
+                                        menu.selectedMode = 'classic';
+                                        menu.options.mode.applySelection();
+                                    }
+                                });
+
+                                menu.options.mode.simon.hitBox.on( 'click touchstart', function(){
+                                    if ( menu.isNotStoppingOrStopped() ){
+                                        menu.selectedMode = 'simon';
+                                        menu.options.mode.applySelection();
+                                    }
+                                });
                             })();
 
                             ( function _multiPlayer() {

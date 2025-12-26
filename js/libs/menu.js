@@ -13,72 +13,28 @@ define([ 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'background' ],
 
                 layer: new Kinetic.Layer,
 
+                // Modo para 1 jugador: 'classic' (normal) o 'simon'
+                selectedMode: 'classic',
+
                 background: background.menu,
 
                 title: {
-                    ceros: {
-                        shape: new Kinetic.Shape({ sceneFunc: function( context ){
-                            context.beginPath();
-                            context.arc( x( 8.7 ), y( 5 ), x( 11.5 ), pi( 1.85 ), pi( 0.2 ), true );
-                            context.lineTo( x( 4.011 ), y( 8 ));
-                            context.moveTo( x( 4 ), y( 3.35 ));
-                            context.arc( x( 3.07 ), y( 5 ), x( 11.5 ), pi( 1.75 ), pi( 0.0 ), true );
-                            context.moveTo( x( 2.42 ), y( 2.64 ));
-                            context.arc( x( 2 ), y( 5 ), x( 11.5 ), pi( 1 ), pi( 1.9 ));
-                            context.arc( x( 1.486 ), y( 5 ), x( 11.5 ), pi( 3 ), pi( 1 ), true );
-                            context.arc( x( 1.486 ), y( 5 ), x( 11.5 ), pi( 3 ), pi( 2.2 ), true );
-                            context.arc( x( 1.13 ), y( 5 ), x( 11.5 ), pi( 1.2 ), pi( 0.81 ));
-                            context.stroke();
-                            context.strokeShape( this )
-                        },
-                            stroke: _s.title.color,
-                            strokeWidth: x( _s.title.stroke.width ),
-                            listening: false
-                        })
-                    },
+                    // Portada simplificada: título estático sin animación.
+                    text: new Kinetic.Text({
+                        x: 0,
+                        y: util.calculate.absolute.y( 3.0 ),
+                        text: 'EduSnake',
+                        width: viewport.dimensions.original.width,
+                        align: 'center',
+                        fontSize: util.calculate.absolute.x( 14 ),
+                        fontFamily: settings.font.face,
+                        fill: settings.font.colors.fill.enabled.hex,
+                        stroke: settings.font.colors.stroke.enabled.hex,
+                        strokeWidth: util.calculate.absolute.size( settings.font.stroke.width ),
+                        listening: false
+                    }),
 
-                    snake: {
-                        shape: new Kinetic.Shape({ sceneFunc: function( context ){
-                            context.beginPath();
-                            context.arc( x( 8.7 ), y( 1.72 ), x( 11.5 ), pi( 1.15 ), pi( 0.81 ));
-                            context.arc( x( 8.7 ), y( 1.72 ), x( 11.5 ), pi( 0.81 ), pi( 0.2 ), true );
-                            context.arc( x( 3.07 ), y( 1.72 ), x( 11.5 ), pi( 1.2 ), pi( 2 ));
-                            context.arc( x( 3.07 ), y( 1.72 ), x( 11.5 ), pi( 0 ), pi( 1 ), true );
-                            context.lineTo( x( 4.19 ), y( 1.312 ));
-                            context.moveTo( x( 2.423 ), y( 1.312 ));
-                            context.lineTo( x( 2.423 ), y( 1.312 ));
-                            context.lineTo( x( 2.423 ), y( 1.72 ));
-                            context.arc( x( 1.99 ), y( 1.72 ), x( 11.5 ), pi( 1 ), pi( 2 ));
-                            context.lineTo( x( 1.695 ), y( 1.312 ));
-                            context.lineTo( x( 1.695 ), y( 2.49 ));
-                            context.moveTo( x( 1.695 ), y( 1.71 ));
-                            context.lineTo( x( 2.413 ), y( 1.71 ));
-                            context.lineTo( x( 1.695 ), y( 1.71 ));
-                            context.quadraticCurveTo( x( 1.308 ), y( 1.71 ), x( 1.308 ), y( 2.49 ));
-                            context.moveTo( x( 1.695 ), y( 1.71 ));
-                            context.quadraticCurveTo( x( 1.39 ), y( 1.71 ), x( 1.287 ), y( 1.38 ));
-                            context.arc( x( 1.13 ), y( 1.72 ), x( 11.5 ), pi( 1.75 ), pi( 0 ), true );
-                            context.stroke();
-                            context.strokeShape( this )
-                        },
-                            stroke: _s.title.color,
-                            strokeWidth: x( _s.title.stroke.width ),
-                            listening: false
-                        })
-                    },
-
-                    bounce: function( frame ){
-                        var bounciness = _s.title.bounciness *
-                            ( Math.sin( frame.time * 2 * Math.PI / settings.animation.period() ));
-
-                        menu.title.ceros.shape.strokeWidth(
-                            util.calculate.absolute.size( _s.title.stroke.width + bounciness )
-                        );
-
-                        menu.title.snake.shape.strokeWidth(
-                            util.calculate.absolute.size( _s.title.stroke.width + bounciness )
-                        )
-                    }
+                    bounce: function(){}
                 },
 
                 options: {
@@ -146,6 +102,68 @@ define([ 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'background' ],
                             height: util.calculate.absolute.size( 10.3 ),
                             opacity: 0
                         })
+                    },
+
+                    mode: {
+                        normal: {
+                            shape: new Kinetic.Text({
+                                x: util.calculate.absolute.x( 2.6 ),
+                                y: util.calculate.absolute.y( 1.60 ),
+                                text: 'Normal',
+                                fontSize: util.calculate.absolute.x( 22 ),
+                                fontFamily: settings.font.face,
+                                fill: settings.font.colors.fill.enabled.hex,
+                                stroke: settings.font.colors.stroke.enabled.hex,
+                                strokeWidth: util.calculate.absolute.size( settings.font.stroke.width ),
+                                listening: false
+                            }),
+
+                            hitBox: new Kinetic.Rect({
+                                x: util.calculate.absolute.x( 2.7 ),
+                                y: util.calculate.absolute.y( 1.68 ),
+                                width: util.calculate.absolute.x( 6 ),
+                                height: util.calculate.absolute.y( 10 ),
+                                opacity: 0
+                            })
+                        },
+
+                        simon: {
+                            shape: new Kinetic.Text({
+                                x: util.calculate.absolute.x( 1.75 ),
+                                y: util.calculate.absolute.y( 1.60 ),
+                                text: 'Simón',
+                                fontSize: util.calculate.absolute.x( 22 ),
+                                fontFamily: settings.font.face,
+                                fill: settings.font.colors.fill.disabled,
+                                stroke: settings.font.colors.stroke.disabled,
+                                strokeWidth: util.calculate.absolute.size( settings.font.stroke.width ),
+                                listening: false
+                            }),
+
+                            hitBox: new Kinetic.Rect({
+                                x: util.calculate.absolute.x( 1.82 ),
+                                y: util.calculate.absolute.y( 1.68 ),
+                                width: util.calculate.absolute.x( 6 ),
+                                height: util.calculate.absolute.y( 10 ),
+                                opacity: 0
+                            })
+                        },
+
+                        applySelection: function(){
+                            var normalEnabled = ( menu.selectedMode !== 'simon' );
+
+                            util.color.fillAndStroke({
+                                node: menu.options.mode.normal.shape,
+                                fill: { hex: normalEnabled ? settings.font.colors.fill.enabled.hex : settings.font.colors.fill.disabled },
+                                stroke: { hex: normalEnabled ? settings.font.colors.stroke.enabled.hex : settings.font.colors.stroke.disabled }
+                            });
+
+                            util.color.fillAndStroke({
+                                node: menu.options.mode.simon.shape,
+                                fill: { hex: normalEnabled ? settings.font.colors.fill.disabled : settings.font.colors.fill.enabled.hex },
+                                stroke: { hex: normalEnabled ? settings.font.colors.stroke.disabled : settings.font.colors.stroke.enabled.hex }
+                            })
+                        }
                     },
 
                     numberControllerGroup: function( number, numberX, controllerX, fill, stroke ){
@@ -307,7 +325,7 @@ define([ 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'background' ],
                 animation: new Kinetic.Animation( function( frame ){
                     var state = menu.state.get( 'current' );
 
-                    menu.title.bounce( frame );
+                    // Portada simplificada: sin animación del título.
                     menu.background.cycleCheck( frame );
 
                     if ( state === 'starting' )
@@ -379,9 +397,7 @@ define([ 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'background' ],
                     ( function _layer() {
                         menu.layer.add( menu.background.group );
 
-                        menu.layer.add( menu.title.ceros.shape );
-
-                        menu.layer.add( menu.title.snake.shape );
+                        menu.layer.add( menu.title.text );
 
                         menu.layer.add( menu.options.singlePlayer.shape );
                         menu.layer.add( menu.options.singlePlayer.hitBox );
@@ -395,6 +411,12 @@ define([ 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'background' ],
                         menu.layer.add( menu.options.highScores.shape );
                         menu.layer.add( menu.options.highScores.hitBox );
 
+                        menu.layer.add( menu.options.mode.normal.shape );
+                        menu.layer.add( menu.options.mode.normal.hitBox );
+
+                        menu.layer.add( menu.options.mode.simon.shape );
+                        menu.layer.add( menu.options.mode.simon.hitBox );
+
                         menu.layer.add( menu.settings.group );
 
                         menu.animation.setLayers( menu.layer )
@@ -405,6 +427,8 @@ define([ 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'background' ],
                         menu.options.multiPlayer.hitBox.cache();
                         menu.options.gear.hitBox.cache();
                         menu.options.highScores.hitBox.cache();
+                        menu.options.mode.normal.hitBox.cache();
+                        menu.options.mode.simon.hitBox.cache();
                         menu.settings.volume.hitBox.cache();
                         menu.settings.fullScreen.hitBox.cache()
                     })()
