@@ -735,7 +735,7 @@ define([ 'underscore', 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'b
                             verticalAlign: 'top',
                             text: '',
                             fontSize: util.calculate.absolute.size( 45 ),
-                            fontFamily: settings.font.face,
+                            fontFamily: 'Fira Mono',
                             fill: settings.font.colors.fill.enabled.hex,
                             stroke: settings.font.colors.stroke.enabled.hex,
                             strokeWidth: util.calculate.absolute.size( settings.font.stroke.width ),
