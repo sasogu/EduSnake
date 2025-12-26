@@ -12,6 +12,7 @@ define([ 'underscore', 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'b
         var simonTimerToken = 0;
         var simonModalGroup = null;
         var simonModalText = null;
+        var simonNoteIndex = 7; // Nota "sol" (ajustable según el set de audio)
         var simonSymbols = [
             { name: 'redonda', symbol: '𝅝' },
             { name: 'blanca', symbol: '𝅗𝅥' },
@@ -41,6 +42,37 @@ define([ 'underscore', 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'b
             return simonSequence
                 .map(function(idx, i){ return ( i + 1 ) + '. ' + simonSymbols[idx].name; })
                 .join('\n');
+        }
+
+        function _simonIsSilence(symbolIdx) {
+            return simonSymbols[ symbolIdx ].name.indexOf( 'silencio' ) === 0;
+        }
+
+        function _simonDurationMs(symbolIdx) {
+            var name = simonSymbols[ symbolIdx ].name;
+            if ( name === 'redonda' ) return 2000;
+            if ( name === 'blanca' ) return 1000;
+            if ( name === 'negra' ) return 500;
+            if ( name === 'corchea' ) return 250;
+            if ( name === 'semicorchea' ) return 125;
+            return 0;
+        }
+
+        function _simonPlayNote(symbolIdx) {
+            if ( _simonIsSilence( symbolIdx )) return;
+            if ( !window.assets || !window.assets.audio || !window.assets.audio.notes ) return;
+
+            var duration = _simonDurationMs( symbolIdx );
+            var notes = window.assets.audio.notes;
+            var sound = notes[ simonNoteIndex % notes.length ];
+            if ( !sound ) return;
+
+            try {
+                sound.stop();
+                sound.play();
+                if ( duration > 0 )
+                    setTimeout(function(){ try{ sound.stop(); }catch(e){} }, duration);
+            } catch ( e ) {}
         }
 
         function _simonShowModal(text) {
@@ -566,6 +598,7 @@ define([ 'underscore', 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'b
                                                 if ( targetIdx !== null ){
                                                     // Crecer siempre en modo Simón; penaliza score si falla.
                                                     s.segment.queueNew();
+                                                    _simonPlayNote( targetIdx );
                                                     if ( isCorrect )
                                                         game.score = ( game.score || 0 ) + 1;
                                                     else

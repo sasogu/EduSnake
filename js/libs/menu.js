@@ -107,7 +107,7 @@ define([ 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'background' ],
                     mode: {
                         normal: {
                             shape: new Kinetic.Text({
-                                x: util.calculate.absolute.x( 2.6 ),
+                                x: util.calculate.absolute.x( 3.5 ),
                                 y: util.calculate.absolute.y( 1.60 ),
                                 text: 'Normal',
                                 fontSize: util.calculate.absolute.x( 22 ),
@@ -119,7 +119,7 @@ define([ 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'background' ],
                             }),
 
                             hitBox: new Kinetic.Rect({
-                                x: util.calculate.absolute.x( 2.7 ),
+                                x: util.calculate.absolute.x( 2.5 ),
                                 y: util.calculate.absolute.y( 1.68 ),
                                 width: util.calculate.absolute.x( 6 ),
                                 height: util.calculate.absolute.y( 10 ),
@@ -129,7 +129,7 @@ define([ 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'background' ],
 
                         simon: {
                             shape: new Kinetic.Text({
-                                x: util.calculate.absolute.x( 1.75 ),
+                                x: util.calculate.absolute.x( 1.67 ),
                                 y: util.calculate.absolute.y( 1.60 ),
                                 text: 'Simón',
                                 fontSize: util.calculate.absolute.x( 22 ),
@@ -141,7 +141,7 @@ define([ 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'background' ],
                             }),
 
                             hitBox: new Kinetic.Rect({
-                                x: util.calculate.absolute.x( 1.82 ),
+                                x: util.calculate.absolute.x( 1.67 ),
                                 y: util.calculate.absolute.y( 1.68 ),
                                 width: util.calculate.absolute.x( 6 ),
                                 height: util.calculate.absolute.y( 10 ),
