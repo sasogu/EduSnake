@@ -1,9 +1,11 @@
 define([ 'underscore', 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'background'],
     function( _, Backbone, Kinetic, settings, util, viewport, background ){
+
         var _s = settings.game;
 
         // --- SIMON DICE ---
-        var simonMode = true; // Cambia a false para desactivar
+        // El modo se selecciona desde el menú y se expone en window.selectedGameMode
+        var simonMode = (window.selectedGameMode === 'simon');
         var simonSequence = [];
         var simonProgress = 0;
         var simonLength = 5; // Longitud de la secuencia
@@ -539,7 +541,8 @@ define([ 'underscore', 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'b
 
         game.init();
 
-        // Iniciar Simon dice al cargar el juego
+
+        // Iniciar Simon dice solo si está seleccionado
         if (simonMode) setTimeout(startSimonSequence, 1000);
 
         return game

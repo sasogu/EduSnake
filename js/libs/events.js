@@ -84,10 +84,11 @@ define([ 'jquery', 'underscore', 'bigScreen', 'settings', 'util', 'database' ],
 
                             menu.options.singlePlayer.hitBox.on( 'click touchstart', function() {
                                 if ( menu.isNotStoppingOrStopped() ){
+                                    // Pasar el modo seleccionado al juego
+                                    window.selectedGameMode = menu.selectedMode || 'classic';
                                     menu.state.set( 'current', 'stopping' );
                                     game.state.set( 'current', 'starting' )
                                 }
-
                             })
                         })();
 

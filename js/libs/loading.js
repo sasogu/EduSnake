@@ -12,7 +12,7 @@ define([ 'underscore', 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'b
                 text: new Kinetic.Text({
                     x: util.calculate.absolute.x( 3 ),
                     y: util.calculate.absolute.y( 2.35 ),
-                    text: 'Loading',
+                    text: 'EduSnake',
                     fontSize: util.calculate.absolute.x( 11 ),
                     fontFamily: settings.loading.text.family,
                     fill: settings.loading.text.color
