@@ -59,6 +59,7 @@ define([ 'underscore', 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'b
                     util.module.start( loading );
 
                     require([ 'assets' ], function( assets ){
+                        window.assets = assets; // Hacer accesible globalmente
                         assets.waitForAsync( function() {
                             assets.init( function( gameAssets ){
                                 require([ 'events' ], function( events ){

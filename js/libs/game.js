@@ -1,7 +1,48 @@
 define([ 'underscore', 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'background'],
     function( _, Backbone, Kinetic, settings, util, viewport, background ){
-        var _s = settings.game,
-            game = {
+        var _s = settings.game;
+
+        // --- SIMON DICE ---
+        var simonMode = true; // Cambia a false para desactivar
+        var simonSequence = [];
+        var simonProgress = 0;
+        var simonLength = 5; // Longitud de la secuencia
+        var simonActive = false;
+
+        function randomSimonNoteIdx() {
+            return Math.floor(Math.random() * (window.assets.audio.notes.length));
+        }
+
+        function startSimonSequence() {
+            simonSequence = [];
+            for (var i = 0; i < simonLength; i++) {
+                simonSequence.push(randomSimonNoteIdx());
+            }
+            simonProgress = 0;
+            simonActive = true;
+            showSimonSequence();
+        }
+
+        function showSimonSequence() {
+            // Muestra la secuencia al jugador (alert simple, luego se puede mejorar visualmente)
+            alert('Secuencia musical: ' + simonSequence.map(function(idx){return idx+1;}).join('-'));
+        }
+
+        function checkSimonInput(noteIdx) {
+            if (!simonActive) return;
+            if (noteIdx === simonSequence[simonProgress]) {
+                simonProgress++;
+                if (simonProgress === simonSequence.length) {
+                    simonActive = false;
+                    setTimeout(function(){alert('¡Secuencia completada!');}, 100);
+                    // Puedes reiniciar o aumentar dificultad aquí
+                }
+            } else {
+                simonActive = false;
+                setTimeout(function(){alert('¡Secuencia incorrecta! Intenta de nuevo.'); startSimonSequence();}, 100);
+            }
+        }
+        var game = {
                 name: 'game',
 
                 isNotStoppingOrStopped: util.module.isNotStoppingOrStopped,
@@ -238,6 +279,7 @@ define([ 'underscore', 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'b
                                 y: util.number.fromCoord( y ) }
                             );
 
+                            // Usar símbolo de nota musical Unicode (\u266B)
                             for ( var i = 0; i < _s.heart.amountOfInnerHearts + 1; i++ ){
                                 heart.add(
                                     new Kinetic.Text({
@@ -247,9 +289,9 @@ define([ 'underscore', 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'b
                                             (( util.calculate.tile.size() * 0.33 ) / 2 ),
                                         fontSize: util.calculate.tile.size() - i *
                                             ( util.calculate.tile.size() * 0.33 ),
-                                        fontFamily: 'FontAwesome',
-                                        text: '\uf004',
-                                        fill: _s.heart.colors[ i ],
+                                        fontFamily: 'Arial',
+                                        text: '\u266B',
+                                        fill: '#222',
                                         listening: false
                                     })
                                 )
@@ -331,6 +373,22 @@ define([ 'underscore', 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'b
                                     },
                                     function( i ){
                                         game.heart.destroy( i );
+
+                                        // SIMON DICE: Validar nota
+                                        if (simonMode && window.assets && window.assets.audio) {
+                                            // Determinar qué nota se tocó (según el orden de aparición)
+                                            var noteIdx = (window.assets.audio._lastNoteIdxPlayed !== undefined)
+                                                ? window.assets.audio._lastNoteIdxPlayed : 0;
+                                            checkSimonInput(noteIdx);
+                                        }
+
+                                        // Reproducir nota musical al comer
+                                        if (window && window.assets && window.assets.audio && window.assets.audio.playNextNote) {
+                                            var idx = window.assets.audio._notePlayIdx = (window.assets.audio._notePlayIdx||0);
+                                            window.assets.audio.notes[idx % window.assets.audio.notes.length].play();
+                                            window.assets.audio._lastNoteIdxPlayed = idx % window.assets.audio.notes.length;
+                                            window.assets.audio._notePlayIdx++;
+                                        }
 
                                         game.background.count( game.snake.segment.list.length + 1 );
 
@@ -480,6 +538,9 @@ define([ 'underscore', 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'b
             };
 
         game.init();
+
+        // Iniciar Simon dice al cargar el juego
+        if (simonMode) setTimeout(startSimonSequence, 1000);
 
         return game
     }

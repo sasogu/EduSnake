@@ -1,8 +1,7 @@
-define([ 'backbone', 'firebase', 'settings', 'backfire' ],
-    function( Backbone, Firebase, settings ){
-        var _s = settings.database,
-            database = {
-                Score: Backbone.Model.extend({
+define([ 'backbone', 'settings' ],
+    function( Backbone, settings ){
+        var database = {
+            Score: Backbone.Model.extend({
                     defaults: function() {
                         return {
                             time: new Date().getTime()
@@ -21,38 +20,19 @@ define([ 'backbone', 'firebase', 'settings', 'backfire' ],
                 }),
 
                 submitScore: function( highScores ){
-                    if ( highScores.add.playerName.field.text().length > 0 ){
-                        database.scores.add(
-                            new database.Score({
-                                score: highScores.add.score,
-                                name: highScores.add.playerName.field.text()
-                            })
-                        );
-
-                        highScores.add.state.set( 'current', 'stopping' )
-
-                    } else alert( 'Please provide your name, or click the "X" icon ' +
-                                  'if you do not wish to record your high score.' )
+                    // Funcionalidad de base de datos deshabilitada temporalmente
+                    alert('Funcionalidad de guardar puntuaciones deshabilitada temporalmente.');
+                    highScores.add.state.set( 'current', 'stopping' );
                 },
 
                 waitUntilConnected: function wait( cb ){
-                    if ( database.scores.at( 0 )) cb();
-                    else setTimeout( wait, 100, cb )
+                    // Siempre simula conexión inmediata
+                    cb();
                 },
 
                 init: function() {
-                    database.TopScores = Backbone.Firebase.Collection.extend({
-                        model: database.Score,
-
-                        firebase: new Firebase( _s.scores.address )
-                            .limit( _s.scores.limit ).endAt(),
-
-                        comparator: function( model ){
-                            return -model.get( 'score' )
-                        }
-                    });
-
-                    database.scores = new database.TopScores
+                    // Simula una colección local vacía
+                    database.scores = new Backbone.Collection([], { model: database.Score });
                 }
             };
 

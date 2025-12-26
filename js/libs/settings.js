@@ -4,30 +4,25 @@ define([], function() {
 
             font: {
                 face: 'New Rocker',
-
                 stroke: { width: 300 },
-
                 colors: {
                     fill: {
                         enabled: {
-                            hex: '#372a50',
-                            h: 261,
-                            s: 31,
-                            l: 24
+                            hex: '#f5f5fa', // Mucho más claro
+                            h: 240,
+                            s: 20,
+                            l: 95
                         },
-
-                        disabled: '#171221'
+                        disabled: '#e0e0e0'
                     },
-
                     stroke: {
                         enabled: {
-                            hex: '#5b4686',
-                            h: 260,
-                            s: 31,
-                            l: 40
+                            hex: '#b0b0d6', // Claro y suave
+                            h: 240,
+                            s: 20,
+                            l: 80
                         },
-
-                        disabled: '#3b2e57'
+                        disabled: '#cccccc'
                     }
                 }
             },
@@ -49,28 +44,23 @@ define([], function() {
 
             background: {
                 countDown: { coords: { x: 14, y: 6 }},
-
-                tile: {
-                    quantity: { x: 32, y: 18 }
-                },
-
+                tile: { quantity: { x: 32, y: 18 } },
                 colors: {
                     base: [
-                        '#27212d', '#131019', '#272331', '#1e1b26', '#16151b', '#1e1c27',
-                        '#2c2535', '#1d1721', '#23222a', '#191621', '#191725', '#171721',
-                        '#1e1822', '#221c2a', '#1c1922', '#1c171e', '#211b25', '#1d1a25',
-                        '#1b1926', '#10101a', '#0c0912', '#0d0a13', '#12101b', '#181526',
-                        '#12121a', '#100f17', '#131218', '#151219', '#201a26', '#1e1a29',
-                        '#15131e', '#14121d'
+                        '#e3e8f7', '#dbeafe', '#f1f5fa', '#f7fafc', '#e0f7fa', '#f0f4c3',
+                        '#fffde7', '#fce4ec', '#e1f5fe', '#f3e5f5', '#f8bbd0', '#ffe0b2',
+                        '#fff9c4', '#c8e6c9', '#dcedc8', '#f0f4c3', '#f5f5fa', '#e0e0e0',
+                        '#f5f5f5', '#e3f2fd', '#e8f5e9', '#f9fbe7', '#f3e5f5', '#fce4ec',
+                        '#e1f5fe', '#f3e5f5', '#f8bbd0', '#ffe0b2', '#fff9c4', '#c8e6c9',
+                        '#dcedc8', '#f0f4c3'
                     ],
-
                     number: [
-                        '#525075', '#726f8e', '#7e789c', '#5c587b', '#4b4867', '#6c6988',
-                        '#807d9c', '#6b678a', '#827ea3', '#63607f', '#6d698a', '#625e81',
-                        '#7a759d', '#9a96bb', '#b0aad0', '#565574', '#6b678c', '#a4a0bb',
-                        '#a09cbf', '#928bb5', '#545073', '#555473', '#7879a7', '#5d5c7e',
-                        '#686487', '#484560', '#665f80', '#8988c1', '#535176', '#4b4b65',
-                        '#5a5979'
+                        '#90caf9', '#a5d6a7', '#ffcc80', '#f48fb1', '#ce93d8', '#fff176',
+                        '#b0bec5', '#b2dfdb', '#ffe082', '#ffab91', '#b39ddb', '#c5e1a5',
+                        '#ffecb3', '#b3e5fc', '#d1c4e9', '#c8e6c9', '#f8bbd0', '#ffccbc',
+                        '#d7ccc8', '#cfd8dc', '#e6ee9c', '#f0f4c3', '#f5f5fa', '#e0e0e0',
+                        '#f5f5f5', '#e3f2fd', '#e8f5e9', '#f9fbe7', '#f3e5f5', '#fce4ec',
+                        '#e1f5fe', '#f3e5f5'
                     ]
                 }
             },
@@ -128,7 +118,7 @@ define([], function() {
 
             game: {
                 snake: {
-                    colors: [ '#4A374B', '#713E4F', '#8B4045' ],
+                    colors: [ '#90caf9', '#a5d6a7', '#ffcc80' ], // Colores pastel claros
 
                     initial: {
                         coords: { x: 16, y: 10 },
