@@ -39,16 +39,13 @@ define([ 'underscore', 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'b
 
         function _simonFormatSequence() {
             return simonSequence
-                .map(function(idx){ return simonSymbols[idx].name; })
-                .join(' ');
+                .map(function(idx, i){ return ( i + 1 ) + '. ' + simonSymbols[idx].name; })
+                .join('\n');
         }
 
         function _simonShowModal(text) {
             if ( !simonModalGroup || !simonModalText ) return;
-            if ( typeof text === 'string' )
-                simonModalText.text( text.replace(/\s+/g, '\n') );
-            else
-                simonModalText.text( text );
+            simonModalText.text( text );
             simonModalGroup.opacity( 1 );
             simonModalGroup.moveToTop();
         }
@@ -64,7 +61,7 @@ define([ 'underscore', 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'b
             game.heart.list = [];
         }
 
-        function _simonGenerateTarget(symbolIdx) {
+        function _simonGenerateTarget(symbolIdx, orderIdx) {
             var x = util.calculate.random.int( 2, settings.background.tile.quantity.x - 1 ),
                 y = util.calculate.random.int( 2, settings.background.tile.quantity.y - 1 ),
                 collisionAtProposedCoordinates = game.collision({
@@ -79,6 +76,7 @@ define([ 'underscore', 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'b
                 });
 
                 target._simonSymbolIdx = symbolIdx;
+                target._simonOrder = ( typeof orderIdx === 'number' ) ? orderIdx : null;
 
                 // Dibuja el símbolo (figura o silencio)
                 target.add(
@@ -97,7 +95,7 @@ define([ 'underscore', 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'b
                 game.layer.add( target );
                 target.setZIndex( 2 );
             } else {
-                _simonGenerateTarget( symbolIdx );
+                _simonGenerateTarget( symbolIdx, orderIdx );
             }
         }
 
@@ -108,7 +106,7 @@ define([ 'underscore', 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'b
             simonLockMovement = true;
             simonAwaitingUser = true;
             _simonClearTargets();
-            _simonShowModal( 'SIMÓN: ' + _simonFormatSequence() );
+            _simonShowModal( _simonFormatSequence() );
         }
 
         function _simonHandleUserAction() {
@@ -121,7 +119,7 @@ define([ 'underscore', 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'b
 
             // Genera en el tablero la secuencia completa; el jugador debe comerla en orden.
             for ( var i = 0; i < simonSequence.length; i++ )
-                _simonGenerateTarget( simonSequence[ i ] );
+                _simonGenerateTarget( simonSequence[ i ], i );
 
             return true;
         }
@@ -134,11 +132,10 @@ define([ 'underscore', 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'b
             simonSequence.push( randomSimonSymbolIdx() );
         }
 
-        function _simonOnEatTarget(targetSymbolIdx) {
+        function _simonOnEatTarget(isCorrect, currentScore) {
             if ( !isSimonMode() ) return;
-            var expected = simonSequence[ simonProgress ];
 
-            if ( targetSymbolIdx === expected ){
+            if ( isCorrect ){
                 simonProgress++;
                 if ( simonProgress >= simonSequence.length ){
                     // Ronda completada -> siguiente con +1
@@ -156,7 +153,7 @@ define([ 'underscore', 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'b
             } else {
                 // Fallo -> volver a 2
                 simonLockMovement = true;
-                _simonShowModal( 'Incorrecto. Volvemos a 2…' );
+                _simonShowModal( 'Incorrecto. -2 puntos. Score: ' + ( currentScore || 0 ) + '. Volvemos a 2…' );
                 simonTimerToken++;
                 var token2 = simonTimerToken;
                 setTimeout(function(){
@@ -493,6 +490,8 @@ define([ 'underscore', 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'b
                         if ( isSimonMode() ){
                             _simonResetSequence();
                             _simonStartRound();
+                            game.score = 0;
+                            game.lastScore = 0;
                         } else {
                             game.heart.regenerate();
                         }
@@ -535,7 +534,8 @@ define([ 'underscore', 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'b
                                     // Si ambas serpientes están muertas, terminar partida
                                     var bothDead = (!game.snake.alive) && (!game.snake2 || !game.snake2.alive);
                                     if ( bothDead ){
-                                        game.lastScore = totalLenBeforeDeath;
+                                        // En modo Simón el score es independiente de la longitud.
+                                        game.lastScore = isSimonMode() ? ( game.score || 0 ) : totalLenBeforeDeath;
                                         if ( game.startTime )
                                             game.lastTimeCentis = Math.round(( Date.now() - game.startTime ) / 10 );
                                         game.state.set( 'current', 'stopping' );
@@ -547,28 +547,35 @@ define([ 'underscore', 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'b
                                             list: game.heart.list
                                         },
                                         function( i ){
-                                            // Si estamos en modo Simón, el objetivo tiene orden.
+                                            // Si estamos en modo Simón, el objetivo se valida por símbolo esperado.
                                             if ( isSimonMode() ){
                                                 var target = game.heart.list[ i ];
                                                 var targetIdx = target && typeof target._simonSymbolIdx === 'number'
                                                     ? target._simonSymbolIdx
                                                     : null;
+                                                var expectedIdx = ( simonSequence && simonProgress < simonSequence.length )
+                                                    ? simonSequence[ simonProgress ]
+                                                    : null;
+                                                // Regla: si la figura es la misma que la esperada, es correcto.
+                                                // Esto permite repeticiones (p.ej. negra, negra) sin penalizar si se come "la otra" negra.
+                                                var isCorrect = ( targetIdx !== null && expectedIdx !== null && targetIdx === expectedIdx );
 
                                                 // Destruir el objetivo comido
                                                 game.heart.destroy( i );
 
-                                                // Solo crece/avanza si el objetivo coincide con el esperado.
-                                                if ( targetIdx !== null )
-                                                    _simonOnEatTarget( targetIdx );
+                                                if ( targetIdx !== null ){
+                                                    // Crecer siempre en modo Simón; penaliza score si falla.
+                                                    s.segment.queueNew();
+                                                    if ( isCorrect )
+                                                        game.score = ( game.score || 0 ) + 1;
+                                                    else
+                                                        game.score = Math.max( 0, ( game.score || 0 ) - 2 );
 
-                                            if ( targetIdx !== null && targetIdx === simonSequence[ Math.max( simonProgress - 1, 0 ) ] ){
-                                                // Crecer como en el modo clásico cuando acierta.
-                                                s.segment.queueNew();
-                                                game.score = (game.snake.segment.list.length || 0) +
-                                                    ((game.snake2 && game.snake2.segment.list.length) || 0) + 1;
-                                                game.lastScore = game.score;
-                                            }
-                                        } else {
+                                                    game.lastScore = game.score;
+                                                    game.background.count( game.score );
+                                                    _simonOnEatTarget( isCorrect, game.score );
+                                                }
+                                            } else {
                                             game.heart.destroy( i );
 
                                                 // Reproducir nota musical al comer
