@@ -280,8 +280,18 @@ define([ 'jquery', 'underscore', 'bigScreen', 'settings', 'util', 'database' ],
                         if ( current === 'stopping' ) start( menu )
                     });
 
+                    // Reproducir canción cuando el menú inicia
+                    menu.state.on( 'change:current', function( state, current ){
+                        if ( current === 'starting' )
+                            assets.audio.song.mp3.play().loop();
+                    });
+
                     game.state.on( 'change:current', function( state, current ){
                         if ( current === 'starting' ){
+                            // Al iniciar el juego, detener la canción de fondo
+                            if ( assets && assets.audio && assets.audio.song && assets.audio.song.mp3 )
+                                assets.audio.song.mp3.stop();
+
                             start( game );
 
                             ( function waitForMenuOut() {
