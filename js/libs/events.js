@@ -51,27 +51,16 @@ define([ 'jquery', 'underscore', 'bigScreen', 'settings', 'util', 'database' ],
                     };
 
                     $( document ).keydown( function( key ){
+                        function _isMultiplayerMode(){
+                            return String( window.selectedGameMode || '' ).indexOf( 'multiplayer' ) !== -1;
+                        }
+
                         if ( key.which == keys.backtick && bigScreen.enabled )
                             bigScreen.toggle();
 
                         else if ( game.isNotStoppingOrStopped() ){
-                            // Modo Simón: teclas 1-0 -> figuras (0..9). No interferir con pausa.
-                            if ( window.selectedGameMode === 'simon' && game.state.get( 'current' ) === 'running' ){
-                                var symbolIdx = null;
-
-                                // 1..9 => 0..8
-                                if ( key.which >= 49 && key.which <= 57 )
-                                    symbolIdx = key.which - 49;
-                                // 0 => 9
-                                else if ( key.which === 48 )
-                                    symbolIdx = 9;
-
-                                if ( symbolIdx !== null && game.simon && typeof game.simon.input === 'function' ){
-                                    game.simon.input( symbolIdx );
-                                    key.preventDefault();
-                                    return;
-                                }
-                            }
+                            if ( game.simon && game.simon.userAction && game.simon.userAction() )
+                                return;
 
                             if ( key.which == keys.space ){
                                 var gameState = game.state.get( 'current' );
@@ -85,7 +74,7 @@ define([ 'jquery', 'underscore', 'bigScreen', 'settings', 'util', 'database' ],
                             }
 
                             // En modo multijugador: WASD -> jugador 1, flechas -> jugador 2
-                            if ( window.selectedGameMode === 'multiplayer' ){
+                            if ( _isMultiplayerMode() ){
                                 // Player 1 (WASD)
                                 handleNewDirectionFor( key.which, [ keys.w ], 'up', game.snake );
                                 handleNewDirectionFor( key.which, [ keys.a ], 'left', game.snake );
@@ -170,6 +159,7 @@ define([ 'jquery', 'underscore', 'bigScreen', 'settings', 'util', 'database' ],
                                 menu.options.mode.normal.hitBox.on( 'click touchstart', function(){
                                     if ( menu.isNotStoppingOrStopped() ){
                                         menu.selectedMode = 'classic';
+                                        window.selectedGameMode = 'classic';
                                         menu.options.mode.applySelection();
                                     }
                                 });
@@ -177,6 +167,7 @@ define([ 'jquery', 'underscore', 'bigScreen', 'settings', 'util', 'database' ],
                                 menu.options.mode.simon.hitBox.on( 'click touchstart', function(){
                                     if ( menu.isNotStoppingOrStopped() ){
                                         menu.selectedMode = 'simon';
+                                        window.selectedGameMode = 'simon';
                                         menu.options.mode.applySelection();
                                     }
                                 });
@@ -195,7 +186,10 @@ define([ 'jquery', 'underscore', 'bigScreen', 'settings', 'util', 'database' ],
 
                                 menu.options.multiPlayer.hitBox.on( 'click touchstart', function() {
                                     if ( menu.isNotStoppingOrStopped() ){
-                                        window.selectedGameMode = 'multiplayer';
+                                        // Si el usuario eligió Simón, permitir Simón en multijugador.
+                                        window.selectedGameMode = ( menu.selectedMode === 'simon' )
+                                            ? 'simon-multiplayer'
+                                            : 'multiplayer';
                                         menu.state.set( 'current', 'stopping' );
                                         game.state.set( 'current', 'starting' )
                                     }
@@ -235,6 +229,9 @@ define([ 'jquery', 'underscore', 'bigScreen', 'settings', 'util', 'database' ],
 
                             menu.options.highScores.hitBox.on( 'click touchstart', function() {
                                 if ( menu.isNotStoppingOrStopped() ){
+                                    // High Scores se filtra por window.selectedGameMode.
+                                    // En menú, usamos la modalidad seleccionada (Normal/Simón).
+                                    window.selectedGameMode = menu.selectedMode || 'classic';
                                     menu.state.set( 'current', 'stopping' );
                                     highScores.view.state.set( 'current', 'starting' )
                                 }
@@ -289,8 +286,11 @@ define([ 'jquery', 'underscore', 'bigScreen', 'settings', 'util', 'database' ],
                                     if ( highScores.add.isNotStoppingOrStopped() ){
                                         var name = prompt( 'What is your name, hero?' );
 
-                                        if ( name.length > 15 )
-                                            alert( 'Your name can only have a maximum of 15 characters!' );
+                                        if ( !name )
+                                            return;
+                                        name = name.toUpperCase();
+                                        if ( !/^[A-Z0-9]{1,3}$/.test( name ) )
+                                            alert( 'Your name must be 1 to 3 letters or numbers!' );
                                         else {
                                             highScores.add.playerName.field.text( name );
 
@@ -409,8 +409,15 @@ define([ 'jquery', 'underscore', 'bigScreen', 'settings', 'util', 'database' ],
 
                                 else setTimeout( waitForMenuOut, 10 )
                             })()
-                        } else if ( current === 'stopping' )
-                               highScores.add.start( (game.snake.segment.list.length || 0) + ((game.snake2 && game.snake2.segment.list.length) || 0) )
+                        } else if ( current === 'stopping' ){
+                               var finalScore = game.lastScore || game.score ||
+                                   ( (game.snake.segment.list.length || 0) + ((game.snake2 && game.snake2.segment.list.length) || 0) );
+                               var timeCentis = ( typeof game.lastTimeCentis === 'number' )
+                                   ? game.lastTimeCentis
+                                   : ( game.startTime ? Math.round(( Date.now() - game.startTime ) / 10 ) : 0 );
+
+                               highScores.add.start( finalScore, timeCentis )
+                        }
                     });
 
                     highScores.add.state.on( 'change:current', function( state, current ){

@@ -544,8 +544,10 @@ function init(KineticModule){
             // General text input
             body.on("keypress", function(e) {
                 // Modified for Ceros Snake
-                if ( that.tempText[0].text().length < 15 )
-                    that.addChar(e);
+                var code = e.charCode || e.keyCode;
+                var theChar = String.fromCharCode(code);
+                if ( /[A-Za-z0-9]/.test(theChar) && that.tempText[0].text().length < 3 )
+                    that.addChar(theChar.toUpperCase());
 
                 return false
             });

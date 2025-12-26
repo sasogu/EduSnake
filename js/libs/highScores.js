@@ -170,8 +170,9 @@ define([ 'underscore', 'Kinetic', 'kineticEditableText', 'settings', 'util', 'da
                             })
                     },
 
-                    start: function( score ){
+                    start: function( score, timeCentis ){
                         highScores.add.score = score;
+                        highScores.add.timeCentis = typeof timeCentis === 'number' ? timeCentis : 0;
 
                         highScores.add.background.count( score );
 
@@ -202,6 +203,7 @@ define([ 'underscore', 'Kinetic', 'kineticEditableText', 'settings', 'util', 'da
 
                     cleanUp: function() {
                         highScores.add.score = 0;
+                        highScores.add.timeCentis = 0;
 
                         highScores.add.playerName.field.clear();
                         highScores.add.playerName.field.unfocus();
@@ -223,11 +225,12 @@ define([ 'underscore', 'Kinetic', 'kineticEditableText', 'settings', 'util', 'da
                     background: background.highScores.view,
 
                     playerName: {
+                        headerFontSize: util.calculate.absolute.size( 35 ),
                         label: new Kinetic.Text({
                             x: util.calculate.absolute.x( _s.name.label.x ),
                             y: util.calculate.absolute.y( _s.name.y ),
-                            text: 'Name:',
-                            fontSize: util.calculate.absolute.size( _s.name.size ),
+                            text: 'NAME',
+                            fontSize: util.calculate.absolute.size( 35 ),
                             fontFamily: 'Fira Mono',
                             fill: settings.font.colors.fill.enabled.hex,
                             stroke: settings.font.colors.stroke.enabled.hex,
@@ -237,8 +240,30 @@ define([ 'underscore', 'Kinetic', 'kineticEditableText', 'settings', 'util', 'da
                         scoreHolder: new Kinetic.Text({
                             x: util.calculate.absolute.x( _s.name.scoreHolder.x ),
                             y: util.calculate.absolute.y( _s.name.y ),
-                            text: 'Name:',
-                            fontSize: util.calculate.absolute.size( _s.name.size ),
+                            text: 'SCORE',
+                            fontSize: util.calculate.absolute.size( 35 ),
+                            fontFamily: 'Fira Mono',
+                            fill: settings.font.colors.fill.enabled.hex,
+                            stroke: settings.font.colors.stroke.enabled.hex,
+                            strokeWidth: util.calculate.absolute.size( settings.font.stroke.width )
+                        }),
+
+                        rankLabel: new Kinetic.Text({
+                            x: util.calculate.absolute.x( 6.8 ),
+                            y: util.calculate.absolute.y( _s.name.y ),
+                            text: 'RANK',
+                            fontSize: util.calculate.absolute.size( 35 ),
+                            fontFamily: 'Fira Mono',
+                            fill: settings.font.colors.fill.enabled.hex,
+                            stroke: settings.font.colors.stroke.enabled.hex,
+                            strokeWidth: util.calculate.absolute.size( settings.font.stroke.width )
+                        }),
+
+                        timeLabel: new Kinetic.Text({
+                            x: util.calculate.absolute.x( 1.6 ),
+                            y: util.calculate.absolute.y( _s.name.y ),
+                            text: 'TIME',
+                            fontSize: util.calculate.absolute.size( 35 ),
                             fontFamily: 'Fira Mono',
                             fill: settings.font.colors.fill.enabled.hex,
                             stroke: settings.font.colors.stroke.enabled.hex,
@@ -246,18 +271,24 @@ define([ 'underscore', 'Kinetic', 'kineticEditableText', 'settings', 'util', 'da
                         }),
 
                         move: function() {
-                            var nameLength = highScores.view.current.get( 'name' ).length;
-
-                            this.label.x(
-                                util.calculate.absolute.x( _s.name.label.x ) -
-                                    ( nameLength * util.calculate.absolute.x( 40.7 ))
-                            );
-
-                            this.scoreHolder.x(
-                                highScores.view.playerName.label.x() +
-                                    util.calculate.absolute.x( 3.8 )
-                            )
+                            this.rankLabel.x( util.calculate.absolute.x( 7.4 ) );
+                            this.label.x( util.calculate.absolute.x( 4.6 ) );
+                            this.scoreHolder.x( util.calculate.absolute.x( 2.9 ) );
+                            this.timeLabel.x( util.calculate.absolute.x( 1.6 ) );
                         }
+                    },
+
+                    list: {
+                        page: 0,
+                        pageSize: 10,
+                        rows: [],
+                        startY: util.calculate.absolute.y( 6.5 ),
+                        rowHeight: util.calculate.absolute.y( 16 ),
+                        fontSize: util.calculate.absolute.size( 26 ),
+                        rankX: util.calculate.absolute.x( 7.4 ),
+                        nameX: util.calculate.absolute.x( 4.6 ),
+                        scoreX: util.calculate.absolute.x( 2.9 ),
+                        timeX: util.calculate.absolute.x( 1.6 )
                     },
 
                     previous: {
@@ -338,10 +369,7 @@ define([ 'underscore', 'Kinetic', 'kineticEditableText', 'settings', 'util', 'da
                     animation: new Kinetic.Animation( function( frame ){
                         if ( highScores.view.isNotStoppingOrStopped() ){
                             highScores.view.mouseOverCheck( frame );
-                            highScores.view.background.cycleCheck(
-                                frame,
-                                highScores.view.current.get( 'score' )
-                            )
+                            highScores.view.background.cycleCheck( frame, highScores.view._getTopScore() )
                         }
 
                         else if ( highScores.view.state.get( 'current' ) === 'stopping' )
@@ -379,32 +407,71 @@ define([ 'underscore', 'Kinetic', 'kineticEditableText', 'settings', 'util', 'da
                             })
                     },
 
+                    _getMode: function(){
+                        var m = String( window.selectedGameMode || 'classic' );
+                        return m.indexOf( 'simon' ) !== -1 ? 'simon' : 'classic';
+                    },
+
+                    _getFilteredScores: function(){
+                        var mode = highScores.view._getMode();
+                        return database.scores.filter(function(model){
+                            var mm = String( model.get( 'mode' ) || 'classic' );
+                            var normalized = mm.indexOf( 'simon' ) !== -1 ? 'simon' : 'classic';
+                            return normalized === mode;
+                        });
+                    },
+
+                    _getTopScore: function(){
+                        var list = highScores.view._getFilteredScores();
+                        return list.length > 0 ? ( list[ 0 ].get( 'score' ) || 0 ) : 0;
+                    },
+
                     update: function( options ){
-                        var o = options;
+                        var o = options || {};
+                        var list = highScores.view.list;
+                        var filtered = highScores.view._getFilteredScores();
+                        var total = filtered.length;
+                        var totalPages = Math.max( 1, Math.ceil( total / list.pageSize ));
 
-                        if ( o.reset || !highScores.view.current )
-                            highScores.view.current = database.scores.at( 0 );
-                        else {
-                            var x = o && o.previous ? -1 : o && o.next ? 1 : 0;
+                        if ( o.reset )
+                            list.page = 0;
+                        else if ( o.previous )
+                            list.page = Math.max( 0, list.page - 1 );
+                        else if ( o.next )
+                            list.page = Math.min( totalPages - 1, list.page + 1 );
 
-                            highScores.view.current = database.scores.at(
-                                database.scores.indexOf( highScores.view.current ) + x
-                            )
+                        if ( list.page > totalPages - 1 )
+                            list.page = totalPages - 1;
+
+                        var startIndex = list.page * list.pageSize;
+
+                        highScores.view.background.count( highScores.view._getTopScore() );
+
+                        for ( var i = 0; i < list.pageSize; i++ ){
+                            var model = filtered[ startIndex + i ];
+                            var row = list.rows[ i ];
+
+                            if ( model ){
+                                var rank = startIndex + i + 1;
+                                var timeCentis = model.get( 'timeCentis' ) || 0;
+                                var timeSeconds = ( timeCentis / 100 ).toFixed( 2 );
+                                row.rank.text( ( rank < 10 ? '0' : '' ) + rank + '.' );
+                                row.name.text( model.get( 'name' ) );
+                                row.score.text( String( model.get( 'score' ) || 0 ) );
+                                row.time.text( timeSeconds + 's' );
+                            } else {
+                                row.rank.text( '' );
+                                row.name.text( '' );
+                                row.score.text( '' );
+                                row.time.text( '' );
+                            }
                         }
 
                         var layer = highScores.view.layer,
                             previous = highScores.view.previous,
-                            next = highScores.view.next,
-                            current = highScores.view.current,
-                            playerName = highScores.view.playerName;
+                            next = highScores.view.next;
 
-                        highScores.view.background.count( current.get( 'score' ));
-
-                        playerName.scoreHolder.text( current.get( 'name' ));
-
-                        playerName.move();
-
-                        if ( current == database.scores.at( 0 )){
+                        if ( list.page === 0 ){
                             previous.shape.remove();
                             previous.hitBox.remove()
                         } else if ( !previous.shape.getParent() ){
@@ -412,7 +479,7 @@ define([ 'underscore', 'Kinetic', 'kineticEditableText', 'settings', 'util', 'da
                             layer.add( previous.hitBox )
                         }
 
-                        if ( current == database.scores.at( database.scores.length - 1 )){
+                        if ( list.page >= totalPages - 1 ){
                             next.shape.remove();
                             next.hitBox.remove()
                         } else if ( !next.shape.getParent() ){
@@ -422,10 +489,68 @@ define([ 'underscore', 'Kinetic', 'kineticEditableText', 'settings', 'util', 'da
                     },
 
                     init: function() {
+                        var list = highScores.view.list;
                         highScores.view.layer.add( highScores.view.background.group );
 
                         highScores.view.layer.add( highScores.view.playerName.label );
                         highScores.view.layer.add( highScores.view.playerName.scoreHolder );
+                        highScores.view.layer.add( highScores.view.playerName.rankLabel );
+                        highScores.view.layer.add( highScores.view.playerName.timeLabel );
+                        highScores.view.playerName.move();
+
+                        for ( var i = 0; i < list.pageSize; i++ ){
+                            var y = list.startY + ( list.rowHeight * i );
+                            var rankText = new Kinetic.Text({
+                                x: list.rankX,
+                                y: y,
+                                text: '',
+                                fontSize: list.fontSize,
+                                fontFamily: 'Fira Mono',
+                                fill: settings.font.colors.fill.enabled.hex,
+                                stroke: settings.font.colors.stroke.enabled.hex,
+                                strokeWidth: util.calculate.absolute.size( settings.font.stroke.width )
+                            });
+
+                            var nameText = new Kinetic.Text({
+                                x: list.nameX,
+                                y: y,
+                                text: '',
+                                fontSize: list.fontSize,
+                                fontFamily: 'Fira Mono',
+                                fill: settings.font.colors.fill.enabled.hex,
+                                stroke: settings.font.colors.stroke.enabled.hex,
+                                strokeWidth: util.calculate.absolute.size( settings.font.stroke.width )
+                            });
+
+                            var scoreText = new Kinetic.Text({
+                                x: list.scoreX,
+                                y: y,
+                                text: '',
+                                fontSize: list.fontSize,
+                                fontFamily: 'Fira Mono',
+                                fill: settings.font.colors.fill.enabled.hex,
+                                stroke: settings.font.colors.stroke.enabled.hex,
+                                strokeWidth: util.calculate.absolute.size( settings.font.stroke.width )
+                            });
+
+                            var timeText = new Kinetic.Text({
+                                x: list.timeX,
+                                y: y,
+                                text: '',
+                                fontSize: list.fontSize,
+                                fontFamily: 'Fira Mono',
+                                fill: settings.font.colors.fill.enabled.hex,
+                                stroke: settings.font.colors.stroke.enabled.hex,
+                                strokeWidth: util.calculate.absolute.size( settings.font.stroke.width )
+                            });
+
+                            list.rows.push({ rank: rankText, name: nameText, score: scoreText, time: timeText });
+
+                            highScores.view.layer.add( rankText );
+                            highScores.view.layer.add( nameText );
+                            highScores.view.layer.add( scoreText );
+                            highScores.view.layer.add( timeText );
+                        }
 
                         highScores.view.layer.add( highScores.view.previous.shape );
                         highScores.view.layer.add( highScores.view.previous.hitBox );

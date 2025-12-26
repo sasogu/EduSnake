@@ -3,13 +3,15 @@ define([ 'underscore', 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'b
 
         var _s = settings.game;
 
-        // --- SIMON DICE ---
+        // --- SIMÓN (estilo clásico, jugado con la serpiente) ---
         // El modo se selecciona desde el menú y se expone en window.selectedGameMode
         var simonSequence = [];
         var simonProgress = 0;
-        var simonLength = 5; // Longitud de la secuencia
-        var simonActive = false;
-        var simonOverlayText = null;
+        var simonLockMovement = false; // Bloquea movimiento mientras se muestra el modal
+        var simonAwaitingUser = false;
+        var simonTimerToken = 0;
+        var simonModalGroup = null;
+        var simonModalText = null;
         var simonSymbols = [
             { name: 'redonda', symbol: '𝅝' },
             { name: 'blanca', symbol: '𝅗𝅥' },
@@ -24,45 +26,145 @@ define([ 'underscore', 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'b
         ];
 
         function isSimonMode() {
-            return window.selectedGameMode === 'simon';
+            return String( window.selectedGameMode || '' ).indexOf( 'simon' ) !== -1;
+        }
+
+        function isMultiplayerMode() {
+            return String( window.selectedGameMode || '' ).indexOf( 'multiplayer' ) !== -1;
         }
 
         function randomSimonSymbolIdx() {
             return Math.floor(Math.random() * simonSymbols.length);
         }
 
-        function startSimonSequence() {
-            if (!isSimonMode()) return;
-            simonSequence = [];
-            for (var i = 0; i < simonLength; i++) {
-                simonSequence.push(randomSimonSymbolIdx());
+        function _simonFormatSequence() {
+            return simonSequence
+                .map(function(idx){ return simonSymbols[idx].name; })
+                .join(' ');
+        }
+
+        function _simonShowModal(text) {
+            if ( !simonModalGroup || !simonModalText ) return;
+            if ( typeof text === 'string' )
+                simonModalText.text( text.replace(/\s+/g, '\n') );
+            else
+                simonModalText.text( text );
+            simonModalGroup.opacity( 1 );
+            simonModalGroup.moveToTop();
+        }
+
+        function _simonHideModal() {
+            if ( !simonModalGroup ) return;
+            simonModalGroup.opacity( 0 );
+        }
+
+        function _simonClearTargets() {
+            if ( !game || !game.heart || !game.heart.list ) return;
+            game.heart.list.forEach(function(t){ try{ t.destroy(); }catch(e){} });
+            game.heart.list = [];
+        }
+
+        function _simonGenerateTarget(symbolIdx) {
+            var x = util.calculate.random.int( 2, settings.background.tile.quantity.x - 1 ),
+                y = util.calculate.random.int( 2, settings.background.tile.quantity.y - 1 ),
+                collisionAtProposedCoordinates = game.collision({
+                    coords: { x: x, y: y },
+                    list: [ game.snake.segment.list, (game.snake2 && game.snake2.segment.list) || [], game.heart.list ]
+                });
+
+            if ( !collisionAtProposedCoordinates ){
+                var target = new Kinetic.Group({
+                    x: util.number.fromCoord( x ),
+                    y: util.number.fromCoord( y )
+                });
+
+                target._simonSymbolIdx = symbolIdx;
+
+                // Dibuja el símbolo (figura o silencio)
+                target.add(
+                    new Kinetic.Text({
+                        x: util.calculate.tile.size(),
+                        y: util.calculate.tile.size(),
+                        fontSize: util.calculate.tile.size(),
+                        fontFamily: settings.font.face,
+                        text: simonSymbols[ symbolIdx ].symbol,
+                        fill: '#222',
+                        listening: false
+                    })
+                );
+
+                game.heart.list.push( target );
+                game.layer.add( target );
+                target.setZIndex( 2 );
+            } else {
+                _simonGenerateTarget( symbolIdx );
             }
+        }
+
+        function _simonStartRound() {
+            if ( !isSimonMode() ) return;
+
             simonProgress = 0;
-            simonActive = true;
-            showSimonSequence();
+            simonLockMovement = true;
+            simonAwaitingUser = true;
+            _simonClearTargets();
+            _simonShowModal( 'SIMÓN: ' + _simonFormatSequence() );
         }
 
-        function showSimonSequence() {
-            var seq = simonSequence.map(function(idx){ return simonSymbols[idx].symbol; }).join(' ');
-            if ( simonOverlayText ){
-                simonOverlayText.text( 'SIMÓN: ' + seq + '  (teclas 1-0)' );
-                simonOverlayText.opacity( 1 );
-                simonOverlayText.moveToTop();
-            }
+        function _simonHandleUserAction() {
+            if ( !isSimonMode() || !simonAwaitingUser ) return false;
+            if ( game.state.get( 'current' ).indexOf( 'stop' ) !== -1 ) return false;
+
+            simonAwaitingUser = false;
+            _simonHideModal();
+            simonLockMovement = false;
+
+            // Genera en el tablero la secuencia completa; el jugador debe comerla en orden.
+            for ( var i = 0; i < simonSequence.length; i++ )
+                _simonGenerateTarget( simonSequence[ i ] );
+
+            return true;
         }
 
-        function checkSimonInput(symbolIdx) {
-            if (!simonActive || !isSimonMode()) return;
-            if (symbolIdx === simonSequence[simonProgress]) {
+        function _simonResetSequence() {
+            simonSequence = [ randomSimonSymbolIdx(), randomSimonSymbolIdx() ];
+        }
+
+        function _simonAdvanceSequence() {
+            simonSequence.push( randomSimonSymbolIdx() );
+        }
+
+        function _simonOnEatTarget(targetSymbolIdx) {
+            if ( !isSimonMode() ) return;
+            var expected = simonSequence[ simonProgress ];
+
+            if ( targetSymbolIdx === expected ){
                 simonProgress++;
-                if (simonProgress === simonSequence.length) {
-                    simonActive = false;
-                    if ( simonOverlayText ) simonOverlayText.text( '¡Correcto! Empieza a jugar.' );
+                if ( simonProgress >= simonSequence.length ){
+                    // Ronda completada -> siguiente con +1
+                    simonLockMovement = true;
+                    _simonShowModal( '¡Bien! Siguiente ronda…' );
+                    simonTimerToken++;
+                    var token = simonTimerToken;
+                    setTimeout(function(){
+                        if ( token !== simonTimerToken ) return;
+                        if ( !isSimonMode() ) return;
+                        _simonAdvanceSequence();
+                        _simonStartRound();
+                    }, 800);
                 }
             } else {
-                simonActive = false;
-                if ( simonOverlayText ) simonOverlayText.text( 'Incorrecto. Reiniciando secuencia…' );
-                setTimeout(function(){ startSimonSequence(); }, 300);
+                // Fallo -> volver a 2
+                simonLockMovement = true;
+                _simonShowModal( 'Incorrecto. Volvemos a 2…' );
+                simonTimerToken++;
+                var token2 = simonTimerToken;
+                setTimeout(function(){
+                    if ( token2 !== simonTimerToken ) return;
+                    if ( !isSimonMode() ) return;
+                    _simonResetSequence();
+                    _simonStartRound();
+                }, 900);
             }
         }
         // Creador de serpientes para soportar modo multijugador
@@ -217,8 +319,12 @@ define([ 'underscore', 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'b
             return snake;
         }
 
-        var game = {
-                name: 'game',
+            var game = {
+                    name: 'game',
+                    score: 0,
+                    lastScore: 0,
+                    startTime: null,
+                    lastTimeCentis: 0,
 
                 isNotStoppingOrStopped: util.module.isNotStoppingOrStopped,
 
@@ -372,18 +478,24 @@ define([ 'underscore', 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'b
                     var state = game.state.get( 'current' );
 
                     if ( state === 'starting' ){
-                        var isMultiplayer = window.selectedGameMode === 'multiplayer';
+                        var isMultiplayer = isMultiplayerMode();
                         game.snake2 = isMultiplayer
                             ? createSnake({ x: 6, y: 10 }, 'left', [ '#ffab91', '#ffcc80', '#b39ddb' ])
                             : null;
 
                         // Inicializar las serpientes activas
                         [ game.snake, game.snake2 ].forEach(function(s){ if (s) { s.segment.queueNew(); s.segment.addNewIfNecessary(); s.alive = true; } });
+                        game.score = (game.snake.segment.list.length || 0) + ((game.snake2 && game.snake2.segment.list.length) || 0);
+                        game.lastScore = game.score;
+                        game.startTime = Date.now();
+                        game.lastTimeCentis = 0;
 
-                        game.heart.regenerate();
-
-                        if ( isSimonMode() )
-                            startSimonSequence();
+                        if ( isSimonMode() ){
+                            _simonResetSequence();
+                            _simonStartRound();
+                        } else {
+                            game.heart.regenerate();
+                        }
 
                         game.state.set( 'current', 'waiting' )
 
@@ -398,8 +510,8 @@ define([ 'underscore', 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'b
                         if ( game.boundaries.areReadyToCycle( frame ))
                             game.boundaries.animation( frame );
 
-                        // En modo Simón: bloquea el movimiento hasta completar la secuencia.
-                        if ( isSimonMode() && simonActive )
+                        // En modo Simón: bloquea el movimiento mientras el modal está visible.
+                        if ( isSimonMode() && simonLockMovement )
                             return;
 
                         // Mover y procesar colisiones para cada serpiente viva
@@ -412,6 +524,9 @@ define([ 'underscore', 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'b
                                 s.segment.addNewIfNecessary();
 
                                 if ( s.isCollidingWith.itself() || s.isCollidingWith.boundary() ){
+                                    var totalLenBeforeDeath = (game.snake.segment.list.length || 0) +
+                                        ((game.snake2 && game.snake2.segment.list.length) || 0);
+
                                     // Marcar muerta y eliminar sus segmentos
                                     s.alive = false;
                                     s.segment.list.forEach(function(seg){ try{ seg.destroy(); }catch(e){} });
@@ -419,7 +534,12 @@ define([ 'underscore', 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'b
                                     s.segment.queue = [];
                                     // Si ambas serpientes están muertas, terminar partida
                                     var bothDead = (!game.snake.alive) && (!game.snake2 || !game.snake2.alive);
-                                    if ( bothDead ) game.state.set( 'current', 'stopping' );
+                                    if ( bothDead ){
+                                        game.lastScore = totalLenBeforeDeath;
+                                        if ( game.startTime )
+                                            game.lastTimeCentis = Math.round(( Date.now() - game.startTime ) / 10 );
+                                        game.state.set( 'current', 'stopping' );
+                                    }
                                 } else {
                                     game.collision(
                                         {
@@ -427,23 +547,48 @@ define([ 'underscore', 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'b
                                             list: game.heart.list
                                         },
                                         function( i ){
+                                            // Si estamos en modo Simón, el objetivo tiene orden.
+                                            if ( isSimonMode() ){
+                                                var target = game.heart.list[ i ];
+                                                var targetIdx = target && typeof target._simonSymbolIdx === 'number'
+                                                    ? target._simonSymbolIdx
+                                                    : null;
+
+                                                // Destruir el objetivo comido
+                                                game.heart.destroy( i );
+
+                                                // Solo crece/avanza si el objetivo coincide con el esperado.
+                                                if ( targetIdx !== null )
+                                                    _simonOnEatTarget( targetIdx );
+
+                                            if ( targetIdx !== null && targetIdx === simonSequence[ Math.max( simonProgress - 1, 0 ) ] ){
+                                                // Crecer como en el modo clásico cuando acierta.
+                                                s.segment.queueNew();
+                                                game.score = (game.snake.segment.list.length || 0) +
+                                                    ((game.snake2 && game.snake2.segment.list.length) || 0) + 1;
+                                                game.lastScore = game.score;
+                                            }
+                                        } else {
                                             game.heart.destroy( i );
 
-                                            // Reproducir nota musical al comer
-                                            if (window && window.assets && window.assets.audio && window.assets.audio.playNextNote) {
-                                                var idx = window.assets.audio._notePlayIdx = (window.assets.audio._notePlayIdx||0);
-                                                window.assets.audio.notes[idx % window.assets.audio.notes.length].play();
-                                                window.assets.audio._lastNoteIdxPlayed = idx % window.assets.audio.notes.length;
-                                                window.assets.audio._notePlayIdx++;
+                                                // Reproducir nota musical al comer
+                                                if (window && window.assets && window.assets.audio && window.assets.audio.playNextNote) {
+                                                    var idx = window.assets.audio._notePlayIdx = (window.assets.audio._notePlayIdx||0);
+                                                    window.assets.audio.notes[idx % window.assets.audio.notes.length].play();
+                                                    window.assets.audio._lastNoteIdxPlayed = idx % window.assets.audio.notes.length;
+                                                    window.assets.audio._notePlayIdx++;
+                                                }
+
+                                                // Contar longitud combinada para mostrar en background
+                                                var totalLen = (game.snake.segment.list.length || 0) + (((game.snake2 && game.snake2.segment.list.length) || 0)) + 1;
+                                                game.background.count( totalLen );
+                                                game.score = totalLen;
+                                                game.lastScore = totalLen;
+
+                                                s.segment.queueNew();
+
+                                                if ( game.heart.list.length === 0 ) game.heart.regenerate()
                                             }
-
-                                            // Contar longitud combinada para mostrar en background
-                                            var totalLen = (game.snake.segment.list.length || 0) + (((game.snake2 && game.snake2.segment.list.length) || 0)) + 1;
-                                            game.background.count( totalLen );
-
-                                            s.segment.queueNew();
-
-                                            if ( game.heart.list.length === 0 ) game.heart.regenerate()
                                         }
                                     )
                                 }
@@ -565,20 +710,40 @@ define([ 'underscore', 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'b
                         game.layer.add( game.boundaries.bottom );
                         game.layer.add( game.boundaries.right );
 
-                        simonOverlayText = new Kinetic.Text({
-                            x: util.calculate.absolute.x( 2 ),
-                            y: util.calculate.absolute.y( 0.7 ),
+                        // Modal simple para mostrar la secuencia del modo Simón.
+                        simonModalGroup = new Kinetic.Group({ opacity: 0, listening: false });
+
+                        simonModalGroup.add(
+                            new Kinetic.Rect({
+                                x: util.calculate.absolute.x( 3.2 ),
+                                y: util.calculate.absolute.y( 4.5 ),
+                                width: viewport.dimensions.original.width - util.calculate.absolute.x( 1.6 ),
+                                height: util.calculate.absolute.y( 2.4 ),
+                                fill: settings.background.colors.base[ 0 ],
+                                opacity: 0.85,
+                                cornerRadius: util.calculate.absolute.size( 50 ),
+                                listening: false
+                            })
+                        );
+
+                        simonModalText = new Kinetic.Text({
+                            x: util.calculate.absolute.x( 3.2 ),
+                            y: util.calculate.absolute.y( 4.5 ),
+                            width: viewport.dimensions.original.width - util.calculate.absolute.x( 1.6 ),
+                            height: util.calculate.absolute.y( 2.4 ),
+                            align: 'center',
+                            verticalAlign: 'top',
                             text: '',
-                            fontSize: util.calculate.absolute.size( 3.5 ),
+                            fontSize: util.calculate.absolute.size( 45 ),
                             fontFamily: settings.font.face,
                             fill: settings.font.colors.fill.enabled.hex,
                             stroke: settings.font.colors.stroke.enabled.hex,
                             strokeWidth: util.calculate.absolute.size( settings.font.stroke.width ),
-                            opacity: 0,
                             listening: false
                         });
 
-                        game.layer.add( simonOverlayText );
+                        simonModalGroup.add( simonModalText );
+                        game.layer.add( simonModalGroup );
 
                         game.layer.add( game.paused );
 
@@ -587,13 +752,13 @@ define([ 'underscore', 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'b
                 },
 
                 cleanUp: function() {
-                    simonActive = false;
+                    simonTimerToken++;
+                    simonLockMovement = false;
+                    simonAwaitingUser = false;
                     simonSequence = [];
                     simonProgress = 0;
-                    if ( simonOverlayText ){
-                        simonOverlayText.text( '' );
-                        simonOverlayText.opacity( 0 );
-                    }
+                    _simonClearTargets();
+                    _simonHideModal();
 
                     [ game.snake, game.snake2 ].forEach(function(s){
                         if (!s) return;
@@ -616,15 +781,15 @@ define([ 'underscore', 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'b
 
         game.init();
 
-        // API mínima para que events.js pueda enviar entradas del modo Simón
+        // API informativa del modo Simón (ya no se usa entrada por teclado).
         game.simon = {
-            input: function( symbolIdx ){
-                if ( typeof symbolIdx === 'number' ) checkSimonInput( symbolIdx );
+            isLocked: function(){
+                return isSimonMode() && simonLockMovement;
             },
-            isActive: function(){
-                return isSimonMode() && simonActive;
-            },
-            symbols: simonSymbols
+            symbols: simonSymbols,
+            userAction: function(){
+                return _simonHandleUserAction();
+            }
         };
 
         return game
