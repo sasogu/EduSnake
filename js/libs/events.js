@@ -9,6 +9,38 @@ define([ 'jquery', 'underscore', 'bigScreen', 'settings', 'util', 'database' ],
                     game = assets.game,
                     highScores = assets.highScores;
 
+                // Navegadores modernos bloquean autoplay; desbloqueamos audio con el primer gesto.
+                var _audioUnlocked = false;
+                var _songWantsToPlay = false;
+
+                function _safePlayBuzz( buzzSound ){
+                    try {
+                        if ( !buzzSound || !buzzSound.play ) return;
+                        var result = buzzSound.play();
+                        if ( result && typeof result.catch === 'function' )
+                            result.catch( function(){} );
+                    } catch ( e ) {}
+                }
+
+                function _startSongIfAllowed(){
+                    if ( !_songWantsToPlay ) return;
+                    if ( !_audioUnlocked ) return;
+                    if ( !assets || !assets.audio || !assets.audio.song || !assets.audio.song.mp3 ) return;
+
+                    // Buzz permite loop() por separado.
+                    try { assets.audio.song.mp3.loop(); } catch ( e ) {}
+                    _safePlayBuzz( assets.audio.song.mp3 );
+                }
+
+                function _unlockAudioOnce(){
+                    if ( _audioUnlocked ) return;
+                    _audioUnlocked = true;
+                    _startSongIfAllowed();
+                }
+
+                // Capturamos cualquier gesto de usuario (click/touch/tecla) para desbloquear.
+                $( document ).one( 'click touchstart keydown', _unlockAudioOnce );
+
                 ( function _keyEvents() {
                     var keys = {
                         w: 87, a: 65, s: 83, d: 68,
@@ -34,10 +66,26 @@ define([ 'jquery', 'underscore', 'bigScreen', 'settings', 'util', 'database' ],
                                     game.state.set( 'current', 'running' );
                             }
 
-                            handleNewDirection( key.which, [ keys.up, keys.w ], 'up' );
-                            handleNewDirection( key.which, [ keys.left, keys.a ], 'left' );
-                            handleNewDirection( key.which, [ keys.down, keys.s ], 'down' );
-                            handleNewDirection( key.which, [ keys.right, keys.d ], 'right' )
+                            // En modo multijugador: WASD -> jugador 1, flechas -> jugador 2
+                            if ( window.selectedGameMode === 'multiplayer' ){
+                                // Player 1 (WASD)
+                                handleNewDirectionFor( key.which, [ keys.w ], 'up', game.snake );
+                                handleNewDirectionFor( key.which, [ keys.a ], 'left', game.snake );
+                                handleNewDirectionFor( key.which, [ keys.s ], 'down', game.snake );
+                                handleNewDirectionFor( key.which, [ keys.d ], 'right', game.snake );
+
+                                // Player 2 (arrow keys)
+                                handleNewDirectionFor( key.which, [ keys.up ], 'up', game.snake2 );
+                                handleNewDirectionFor( key.which, [ keys.left ], 'left', game.snake2 );
+                                handleNewDirectionFor( key.which, [ keys.down ], 'down', game.snake2 );
+                                handleNewDirectionFor( key.which, [ keys.right ], 'right', game.snake2 );
+                            } else {
+                                // Modo clásico: ambos mapeos controlan la misma serpiente
+                                handleNewDirectionFor( key.which, [ keys.up, keys.w ], 'up', game.snake );
+                                handleNewDirectionFor( key.which, [ keys.left, keys.a ], 'left', game.snake );
+                                handleNewDirectionFor( key.which, [ keys.down, keys.s ], 'down', game.snake );
+                                handleNewDirectionFor( key.which, [ keys.right, keys.d ], 'right', game.snake )
+                            }
 
                         } else if ( highScores.add.isNotStoppingOrStopped() ){
                             highScores.add.playerName.move();
@@ -58,12 +106,12 @@ define([ 'jquery', 'underscore', 'bigScreen', 'settings', 'util', 'database' ],
                         }
                     });
 
-                    function handleNewDirection( pressedKey, expectedKeys, direction ){
+                    function handleNewDirectionFor( pressedKey, expectedKeys, direction, targetSnake ){
                         if ( _.indexOf( expectedKeys, pressedKey ) != -1 ){
-                            if ( !( game.snake.direction.currentOrLastQueuedIsOppositeOf( direction ) ||
-                                    game.snake.direction.lastQueuedIsSameAs( direction ))){
+                            if ( targetSnake && !( targetSnake.direction.currentOrLastQueuedIsOppositeOf( direction ) ||
+                                    targetSnake.direction.lastQueuedIsSameAs( direction ))){
 
-                                game.snake.direction.pushOrInit( direction )
+                                targetSnake.direction.pushOrInit( direction )
                             }
                         }
                     }
@@ -90,6 +138,27 @@ define([ 'jquery', 'underscore', 'bigScreen', 'settings', 'util', 'database' ],
                                     game.state.set( 'current', 'starting' )
                                 }
                             })
+                            })();
+
+                            ( function _multiPlayer() {
+                                menu.options.multiPlayer.hitBox.on( 'mouseout', function() {
+                                    menu.options.multiPlayer.shape.getChildren().each( function( node ){
+                                        util.color.fillAndStroke({
+                                            node: node,
+                                            fill: { hex: settings.font.colors.fill.enabled.hex },
+                                            stroke: { hex: settings.font.colors.stroke.enabled.hex }
+                                        })
+                                    })
+                                });
+
+                                menu.options.multiPlayer.hitBox.on( 'click touchstart', function() {
+                                    if ( menu.isNotStoppingOrStopped() ){
+                                        window.selectedGameMode = 'multiplayer';
+                                        menu.state.set( 'current', 'stopping' );
+                                        game.state.set( 'current', 'starting' )
+                                    }
+                                })
+                            })();
                         })();
 
                         ( function _gear() {
@@ -271,8 +340,6 @@ define([ 'jquery', 'underscore', 'bigScreen', 'settings', 'util', 'database' ],
                             })();
                         })();
                     })();
-                })();
-
                 ( function _transitionListener() {
                     var start = util.module.start;
 
@@ -283,7 +350,7 @@ define([ 'jquery', 'underscore', 'bigScreen', 'settings', 'util', 'database' ],
                     // Reproducir canción cuando el menú inicia
                     menu.state.on( 'change:current', function( state, current ){
                         if ( current === 'starting' )
-                            assets.audio.song.mp3.play().loop();
+                            ( _songWantsToPlay = true, _startSongIfAllowed() );
                     });
 
                     game.state.on( 'change:current', function( state, current ){
@@ -301,7 +368,7 @@ define([ 'jquery', 'underscore', 'bigScreen', 'settings', 'util', 'database' ],
                                 else setTimeout( waitForMenuOut, 10 )
                             })()
                         } else if ( current === 'stopping' )
-                            highScores.add.start( game.snake.segment.list.length )
+                               highScores.add.start( (game.snake.segment.list.length || 0) + ((game.snake2 && game.snake2.segment.list.length) || 0) )
                     });
 
                     highScores.add.state.on( 'change:current', function( state, current ){
@@ -320,7 +387,8 @@ define([ 'jquery', 'underscore', 'bigScreen', 'settings', 'util', 'database' ],
 
                 ( function _transitionToMenu() {
                     database.waitUntilConnected( function() {
-                        assets.audio.song.mp3.play().loop();
+                        _songWantsToPlay = true;
+                        _startSongIfAllowed();
                         loading.state.set( 'current', 'stopping' )
                     })
                 })()

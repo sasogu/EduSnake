@@ -350,7 +350,17 @@ define([ 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'background' ],
                                 util.calculate.absolute.x( 3.99 ),
                                 settings.font.colors.fill.disabled,
                                 settings.font.colors.stroke.disabled
-                            )
+                            ),
+                            hitBox: new Kinetic.Rect({
+                                x: util.calculate.absolute.x( 3.99 ),
+                                y: util.calculate.absolute.y( 1.214 ),
+                                width: util.calculate.absolute.size( 2.125 ),
+                                height: util.calculate.absolute.size( 10.3 ),
+                                opacity: 0
+                            }),
+                            mouseOver: function() {
+                                return util.mouse.isOverNode( menu.options.multiPlayer.hitBox )
+                            }
                         }
                     })();
 
@@ -377,6 +387,7 @@ define([ 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'background' ],
                         menu.layer.add( menu.options.singlePlayer.hitBox );
 
                         menu.layer.add( menu.options.multiPlayer.shape );
+                        menu.layer.add( menu.options.multiPlayer.hitBox );
 
                         menu.layer.add( menu.options.gear.shape );
                         menu.layer.add( menu.options.gear.hitBox );
@@ -391,6 +402,7 @@ define([ 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'background' ],
 
                     ( function _cache() {
                         menu.options.singlePlayer.hitBox.cache();
+                        menu.options.multiPlayer.hitBox.cache();
                         menu.options.gear.hitBox.cache();
                         menu.options.highScores.hitBox.cache();
                         menu.settings.volume.hitBox.cache();

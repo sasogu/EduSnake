@@ -44,6 +44,158 @@ define([ 'underscore', 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'b
                 setTimeout(function(){alert('¡Secuencia incorrecta! Intenta de nuevo.'); startSimonSequence();}, 100);
             }
         }
+        // Creador de serpientes para soportar modo multijugador
+        function createSnake(initialCoords, initialDirection, colors){
+            var snake = {
+                segment: {
+                    queue: [],
+
+                    list: [],
+
+                    queueNew: function() {
+                        var segment = {};
+
+                        if ( snake.segment.list.length > 0 ){
+                            segment.x = _.last( snake.segment.list ).x();
+                            segment.y = _.last( snake.segment.list ).y()
+                        } else {
+                            segment.x = util.number.fromCoord( initialCoords.x );
+                            segment.y = util.number.fromCoord( initialCoords.y )
+                        }
+
+                        segment.shape = new Kinetic.Group({
+                            x: segment.x,
+                            y: segment.y,
+                            listening: false
+                        });
+
+                        for ( var i = 0; i < _s.snake.amountOfInnerRectangles + 1; i++ ){
+                            segment.shape.add(
+                                new Kinetic.Rect({
+                                    x: util.calculate.tile.size() + i *
+                                        (( util.calculate.tile.size() * 0.33 ) / 2 ),
+                                    y: util.calculate.tile.size() + i *
+                                        (( util.calculate.tile.size() * 0.33 ) / 2 ),
+                                    width: util.calculate.tile.size() - i *
+                                        ( util.calculate.tile.size() * 0.33 ),
+                                    height: util.calculate.tile.size() - i *
+                                        ( util.calculate.tile.size() * 0.33 ),
+                                    fill: colors[ i ],
+                                    listening: false
+                                })
+                            )
+                        }
+
+                        snake.segment.queue.push( segment.shape )
+                    },
+
+                    addNewIfNecessary: function() {
+                        if ( snake.segment.queue.length > 0 ){
+                            var segment = snake.segment.queue.shift();
+
+                            snake.segment.list.push( segment );
+
+                            game.layer.add( segment )
+                        }
+                    }
+                },
+
+                direction: {
+                    queue: [ initialDirection ],
+
+                    current: initialDirection,
+
+                    changeIfNecessary: function() {
+                        if ( snake.direction.queue.length > 0 )
+                            snake.direction.current = snake.direction.queue.shift()
+                    },
+
+                    currentOrLastQueuedIsOppositeOf: function( direction ){
+                        if ( snake.segment.list.length === 1 )
+                            return false;
+                        else {
+                            var opposite;
+
+                            if ( direction === 'up' ) opposite = 'down';
+                            else if ( direction === 'down' ) opposite = 'up';
+                            else if ( direction === 'left' ) opposite = 'right';
+                            else if ( direction === 'right' ) opposite = 'left';
+
+                            return snake.direction.current === opposite ||
+                                   _.last( snake.direction.queue ) === opposite
+                        }
+                    },
+
+                    lastQueuedIsSameAs: function( direction ){
+                        return _.last( snake.direction.queue ) === direction
+                    },
+
+                    pushOrInit: function( direction ){
+                        if ( game.state.get( 'current' ) === 'running' )
+                            snake.direction.queue.push( direction );
+
+                        else snake.direction.queue[ 0 ] = direction
+                    }
+                },
+
+                isReadyToMove: function( frame ){
+                    return frame.time - ( snake.lastMovementTime || 0 ) >= ( settings.animation.period() -
+                        ( snake.segment.list.length * _s.snake.speedIncrement )) / 2
+                },
+
+                move: function( frame ){
+                    snake.direction.changeIfNecessary();
+
+                    var firstSegment = snake.segment.list[ 0 ],
+                        lastSegment = _.last( snake.segment.list ),
+                        currentDirection = snake.direction.current;
+
+                    if ( currentDirection === 'up' ){
+                        lastSegment.x( firstSegment.x() );
+                        lastSegment.y( firstSegment.y() - util.calculate.tile.size() )
+
+                    } else if ( currentDirection === 'right' ){
+                        lastSegment.x( firstSegment.x() + util.calculate.tile.size() );
+                        lastSegment.y( firstSegment.y() )
+
+                    } else if ( currentDirection === 'down' ){
+                        lastSegment.x( firstSegment.x() );
+                        lastSegment.y( firstSegment.y() + util.calculate.tile.size() )
+
+                    } else {
+                        lastSegment.x( firstSegment.x() - util.calculate.tile.size() );
+                        lastSegment.y( firstSegment.y() )
+                    }
+
+                    if ( snake.segment.list.length > 1 )
+                        snake.segment.list.unshift( snake.segment.list.pop() );
+
+                    snake.lastMovementTime = frame.time;
+                },
+
+                isCollidingWith: {
+                    itself: function() {
+                        return game.collision({
+                            shape: snake.segment.list[ 0 ],
+                            list: snake.segment.list
+                        })
+                    },
+
+                    boundary: function() {
+                        return util.number.toCoord( snake.segment.list[ 0 ].x() ) === 1 ||
+                               util.number.toCoord( snake.segment.list[ 0 ].x() ) === settings.background.tile.quantity.x ||
+                               util.number.toCoord( snake.segment.list[ 0 ].y() ) === 1 ||
+                               util.number.toCoord( snake.segment.list[ 0 ].y() ) === settings.background.tile.quantity.y
+                    }
+                },
+
+                lastMovementTime: null,
+                alive: true
+            };
+
+            return snake;
+        }
+
         var game = {
                 name: 'game',
 
@@ -120,149 +272,8 @@ define([ 'underscore', 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'b
                     }
                 },
 
-                snake: {
-                    segment: {
-                        queue: [],
-
-                        list: [],
-
-                        queueNew: function() {
-                            var segment = {};
-
-                            if ( game.snake.segment.list.length > 0 ){
-                                segment.x = _.last( game.snake.segment.list ).x();
-                                segment.y = _.last( game.snake.segment.list ).y()
-                            } else {
-                                segment.x = util.number.fromCoord( _s.snake.initial.coords.x );
-                                segment.y = util.number.fromCoord( _s.snake.initial.coords.y )
-                            }
-
-                            segment.shape = new Kinetic.Group({
-                                x: segment.x,
-                                y: segment.y,
-                                listening: false
-                            });
-
-                            for ( var i = 0; i < _s.snake.amountOfInnerRectangles + 1; i++ ){
-                                segment.shape.add(
-                                    new Kinetic.Rect({
-                                        x: util.calculate.tile.size() + i *
-                                            (( util.calculate.tile.size() * 0.33 ) / 2 ),
-                                        y: util.calculate.tile.size() + i *
-                                            (( util.calculate.tile.size() * 0.33 ) / 2 ),
-                                        width: util.calculate.tile.size() - i *
-                                            ( util.calculate.tile.size() * 0.33 ),
-                                        height: util.calculate.tile.size() - i *
-                                            ( util.calculate.tile.size() * 0.33 ),
-                                        fill: _s.snake.colors[ i ],
-                                        listening: false
-                                    })
-                                )
-                            }
-
-                            game.snake.segment.queue.push( segment.shape )
-                        },
-
-                        addNewIfNecessary: function() {
-                            if ( game.snake.segment.queue.length > 0 ){
-                                var segment = game.snake.segment.queue.shift();
-
-                                game.snake.segment.list.push( segment );
-
-                                game.layer.add( segment )
-                            }
-                        }
-                    },
-
-                    direction: {
-                        queue: [ _s.snake.initial.direction ],
-
-                        current: _s.snake.initial.direction,
-
-                        changeIfNecessary: function() {
-                            if ( game.snake.direction.queue.length > 0 )
-                                game.snake.direction.current = game.snake.direction.queue.shift()
-                        },
-
-                        currentOrLastQueuedIsOppositeOf: function( direction ){
-                            if ( game.snake.segment.list.length === 1 )
-                                return false;
-                            else {
-                                var opposite;
-
-                                if ( direction === 'up' ) opposite = 'down';
-                                else if ( direction === 'down' ) opposite = 'up';
-                                else if ( direction === 'left' ) opposite = 'right';
-                                else if ( direction === 'right' ) opposite = 'left';
-
-                                return game.snake.direction.current === opposite ||
-                                       _.last( game.snake.direction.queue ) === opposite
-                            }
-                        },
-
-                        lastQueuedIsSameAs: function( direction ){
-                            return _.last( game.snake.direction.queue ) === direction
-                        },
-
-                        pushOrInit: function( direction ){
-                            if ( game.state.get( 'current' ) === 'running' )
-                                game.snake.direction.queue.push( direction );
-
-                            else game.snake.direction.queue[ 0 ] = direction
-                        }
-                    },
-
-                    isReadyToMove: function( frame ){
-                        return frame.time - ( game.snake.lastMovementTime || 0 ) >= ( settings.animation.period() -
-                            ( game.snake.segment.list.length * _s.snake.speedIncrement )) / 2
-                    },
-
-                    move: function( frame ){
-                        game.snake.direction.changeIfNecessary();
-
-                        var firstSegment = game.snake.segment.list[ 0 ],
-                            lastSegment = _.last( game.snake.segment.list ),
-                            currentDirection = game.snake.direction.current;
-
-                        if ( currentDirection === 'up' ){
-                            lastSegment.x( firstSegment.x() );
-                            lastSegment.y( firstSegment.y() - util.calculate.tile.size() )
-
-                        } else if ( currentDirection === 'right' ){
-                            lastSegment.x( firstSegment.x() + util.calculate.tile.size() );
-                            lastSegment.y( firstSegment.y() )
-
-                        } else if ( currentDirection === 'down' ){
-                            lastSegment.x( firstSegment.x() );
-                            lastSegment.y( firstSegment.y() + util.calculate.tile.size() )
-
-                        } else {
-                            lastSegment.x( firstSegment.x() - util.calculate.tile.size() );
-                            lastSegment.y( firstSegment.y() )
-                        }
-
-                        if ( game.snake.segment.list.length > 1 )
-                            game.snake.segment.list.unshift( game.snake.segment.list.pop() );
-
-                        game.snake.lastMovementTime = frame.time;
-                    },
-
-                    isCollidingWith: {
-                        itself: function() {
-                            return game.collision({
-                                shape: game.snake.segment.list[ 0 ],
-                                list: game.snake.segment.list
-                            })
-                        },
-
-                        boundary: function() {
-                            return util.number.toCoord( game.snake.segment.list[ 0 ].x() ) === 1 ||
-                                   util.number.toCoord( game.snake.segment.list[ 0 ].x() ) === settings.background.tile.quantity.x ||
-                                   util.number.toCoord( game.snake.segment.list[ 0 ].y() ) === 1 ||
-                                   util.number.toCoord( game.snake.segment.list[ 0 ].y() ) === settings.background.tile.quantity.y
-                        }
-                    }
-                },
+                snake: createSnake({ x: _s.snake.initial.coords.x, y: _s.snake.initial.coords.y }, _s.snake.initial.direction, _s.snake.colors),
+                snake2: null,
 
                 heart: {
                     list: [],
@@ -272,7 +283,7 @@ define([ 'underscore', 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'b
                             y = util.calculate.random.int( 2, settings.background.tile.quantity.y - 1 ),
                             collisionAtProposedCoordinates = game.collision({
                                 coords: { x: x, y: y },
-                                list: [ game.snake.segment.list, game.heart.list ]
+                                list: [ game.snake.segment.list, (game.snake2 && game.snake2.segment.list) || [], game.heart.list ]
                             });
 
                         if ( !collisionAtProposedCoordinates ){
@@ -340,8 +351,13 @@ define([ 'underscore', 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'b
                     var state = game.state.get( 'current' );
 
                     if ( state === 'starting' ){
-                        game.snake.segment.queueNew();
-                        game.snake.segment.addNewIfNecessary();
+                        var isMultiplayer = window.selectedGameMode === 'multiplayer';
+                        game.snake2 = isMultiplayer
+                            ? createSnake({ x: 6, y: 10 }, 'left', [ '#ffab91', '#ffcc80', '#b39ddb' ])
+                            : null;
+
+                        // Inicializar las serpientes activas
+                        [ game.snake, game.snake2 ].forEach(function(s){ if (s) { s.segment.queueNew(); s.segment.addNewIfNecessary(); s.alive = true; } });
 
                         game.heart.regenerate();
 
@@ -358,49 +374,60 @@ define([ 'underscore', 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'b
                         if ( game.boundaries.areReadyToCycle( frame ))
                             game.boundaries.animation( frame );
 
-                        if ( game.snake.isReadyToMove( frame )){
-                            game.snake.move( frame );
+                        // Mover y procesar colisiones para cada serpiente viva
+                        [ game.snake, game.snake2 ].forEach(function(s){
+                            if (!s || !s.alive) return;
 
-                            game.snake.segment.addNewIfNecessary();
+                            if ( s.isReadyToMove( frame )){
+                                s.move( frame );
 
-                            if ( game.snake.isCollidingWith.itself() ||
-                                 game.snake.isCollidingWith.boundary() )
+                                s.segment.addNewIfNecessary();
 
-                                game.state.set( 'current', 'stopping' );
-                            else {
-                                game.collision(
-                                    {
-                                        shape: game.snake.segment.list[ 0 ],
-                                        list: game.heart.list
-                                    },
-                                    function( i ){
-                                        game.heart.destroy( i );
+                                if ( s.isCollidingWith.itself() || s.isCollidingWith.boundary() ){
+                                    // Marcar muerta y eliminar sus segmentos
+                                    s.alive = false;
+                                    s.segment.list.forEach(function(seg){ try{ seg.destroy(); }catch(e){} });
+                                    s.segment.list = [];
+                                    s.segment.queue = [];
+                                    // Si ambas serpientes están muertas, terminar partida
+                                    var bothDead = (!game.snake.alive) && (!game.snake2 || !game.snake2.alive);
+                                    if ( bothDead ) game.state.set( 'current', 'stopping' );
+                                } else {
+                                    game.collision(
+                                        {
+                                            shape: s.segment.list[ 0 ],
+                                            list: game.heart.list
+                                        },
+                                        function( i ){
+                                            game.heart.destroy( i );
 
-                                        // SIMON DICE: Validar nota
-                                        if (simonMode && window.assets && window.assets.audio) {
-                                            // Determinar qué nota se tocó (según el orden de aparición)
-                                            var noteIdx = (window.assets.audio._lastNoteIdxPlayed !== undefined)
-                                                ? window.assets.audio._lastNoteIdxPlayed : 0;
-                                            checkSimonInput(noteIdx);
+                                            // SIMON DICE: Validar nota
+                                            if (simonMode && window.assets && window.assets.audio) {
+                                                var noteIdx = (window.assets.audio._lastNoteIdxPlayed !== undefined)
+                                                    ? window.assets.audio._lastNoteIdxPlayed : 0;
+                                                checkSimonInput(noteIdx);
+                                            }
+
+                                            // Reproducir nota musical al comer
+                                            if (window && window.assets && window.assets.audio && window.assets.audio.playNextNote) {
+                                                var idx = window.assets.audio._notePlayIdx = (window.assets.audio._notePlayIdx||0);
+                                                window.assets.audio.notes[idx % window.assets.audio.notes.length].play();
+                                                window.assets.audio._lastNoteIdxPlayed = idx % window.assets.audio.notes.length;
+                                                window.assets.audio._notePlayIdx++;
+                                            }
+
+                                            // Contar longitud combinada para mostrar en background
+                                            var totalLen = (game.snake.segment.list.length || 0) + (game.snake2.segment.list.length || 0) + 1;
+                                            game.background.count( totalLen );
+
+                                            s.segment.queueNew();
+
+                                            if ( game.heart.list.length === 0 ) game.heart.regenerate()
                                         }
-
-                                        // Reproducir nota musical al comer
-                                        if (window && window.assets && window.assets.audio && window.assets.audio.playNextNote) {
-                                            var idx = window.assets.audio._notePlayIdx = (window.assets.audio._notePlayIdx||0);
-                                            window.assets.audio.notes[idx % window.assets.audio.notes.length].play();
-                                            window.assets.audio._lastNoteIdxPlayed = idx % window.assets.audio.notes.length;
-                                            window.assets.audio._notePlayIdx++;
-                                        }
-
-                                        game.background.count( game.snake.segment.list.length + 1 );
-
-                                        game.snake.segment.queueNew();
-
-                                        if ( game.heart.list.length === 0 ) game.heart.regenerate()
-                                    }
-                                )
+                                    )
+                                }
                             }
-                        }
+                        })
                     } else if ( state === 'stopping' )
                         util.module.stop( game, frame );
 
@@ -524,11 +551,15 @@ define([ 'underscore', 'backbone', 'Kinetic', 'settings', 'util', 'viewport', 'b
                 },
 
                 cleanUp: function() {
-                    game.snake.segment.list.forEach( function( segment ){ segment.destroy() });
-                    game.snake.segment.list = [];
-                    game.snake.segment.queue = [];
-                    game.snake.direction.queue = [ _s.snake.initial.direction ];
-                    game.snake.direction.current = _s.snake.initial.direction;
+                    [ game.snake, game.snake2 ].forEach(function(s){
+                        if (!s) return;
+                        s.segment.list.forEach( function( segment ){ try{ segment.destroy() }catch(e){} });
+                        s.segment.list = [];
+                        s.segment.queue = [];
+                        s.direction.queue = [ _s.snake.initial.direction ];
+                        s.direction.current = _s.snake.initial.direction;
+                        s.alive = false;
+                    });
 
                     game.heart.list.forEach( function( heart ){ heart.destroy() });
                     game.heart.list = [];
